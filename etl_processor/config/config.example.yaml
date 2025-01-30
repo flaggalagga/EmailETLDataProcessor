@@ -1,0 +1,93 @@
+# Generic Import Configurations
+
+imports:
+  generic_import:
+    name: "Generic Data Import"
+    sender_email: "sender@example.com"
+    primary_attachment: "data.zip"
+    days_lookback: 30  # Look back 30 days
+    inboxes:
+      - INBOX
+      - INBOX.Archive
+      - INBOX.Processed
+
+    # Security configuration template
+    security:
+      email_checks:
+        - sender_domain
+        - spf
+        - dkim
+        - dmarc
+      malware_scan: true
+      allowed_sender_domains:
+        - example.com
+        - trusted-domain.org
+      spam_threshold: 3.0
+      max_attachment_size: "50MB"
+      allowed_attachment_types:
+        - application/xml
+        - application/zip
+        - text/xml
+        - application/json
+
+      # File security settings
+      file_validation:
+        max_size: "50MB"
+        zip_extraction:
+          max_ratio: 15
+          max_files: 100
+          max_file_size: "50MB"
+          allowed_types:
+            - .xml
+            - .json
+        xml_validation:
+          disable_entities: true
+          disable_dtd: true
+          max_depth: 100
+
+    # Reference data processing order
+    reference_order:
+      - reference1.xml
+      - reference2.xml
+      - main_data.xml
+
+    # Mapping example for reference and main data
+    mappings:
+      reference1.xml:
+        table: "reference_table_1"
+        fields:
+          ID: 
+            db_field: "id"
+            type: "integer"
+          NAME: 
+            db_field: "name"
+            type: "string"
+      
+      reference2.xml:
+        table: "reference_table_2"
+        fields:
+          CODE: 
+            db_field: "code"
+            type: "string"
+          DESCRIPTION: 
+            db_field: "description"
+            type: "string"
+      
+      main_data.xml:
+        tables:
+        - name: "main_data"
+          root_element: "DataItem"
+          fields:
+            ITEM_ID: 
+              db_field: "id"
+              type: "integer"
+            ITEM_NAME: 
+              db_field: "name"
+              type: "string"
+            REFERENCE_ID:
+              db_field: "reference_id"
+              type: "integer"
+              lookup:
+                table: "reference_table_1"
+                query: "SELECT id FROM {table} WHERE name = :value"
+                error_if_not_found: true

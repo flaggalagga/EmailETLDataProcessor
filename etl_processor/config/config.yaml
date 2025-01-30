@@ -1,0 +1,1092 @@
+# BSM Mountain Accident Import Configuration
+imports:
+  bsm:
+    name: "BSM Mountain Accidents"
+    sender_email: "sir-si@gendarmerie.interieur.gouv.fr"
+    primary_attachment: "BSM.zip"
+    days_lookback: 90  # 3 months in days
+    inboxes:
+      - INBOX
+      - INBOX.Archive
+      - "INBOX.Non Conforme"
+    # BSM-specific security configuration
+    security:
+      email_checks:
+        - sender_domain
+        - spf
+        - dkim
+        - dmarc
+      malware_scan: true
+      allowed_sender_domains:
+        - gendarmerie.interieur.gouv.fr
+        - ensm.sports.gouv.fr
+      spam_threshold: 5.0
+      max_attachment_size: 50MB
+      allowed_attachment_types:
+        - application/xml
+        - application/zip
+        - text/xml
+    
+      # File security settings
+      file_validation:
+        max_size: 50MB
+        zip_extraction:
+          max_ratio: 15
+          max_files: 100
+          max_file_size: 50MB
+          allowed_types:
+            - .xml
+        xml_validation:
+          disable_entities: true
+          disable_dtd: true
+          max_depth: 100
+
+    # Specific processing order for reference data to handle foreign key constraints
+    reference_order:
+      - BSM_UNITE.XML
+      - BSM_TYPE.XML
+      - BSM_SOUS_TYPE.XML
+      - BSM_SEXE.XML
+      - BSM_RISQUE_AVALANCHE.XML
+      - BSM_NEIGE.XML
+      - BSM_NATIONALITE.XML
+      - BSM_METEO.XML
+      - BSM_LOC_PISTE.XML
+      - BSM_LIEU.XML
+      - BSM_ETAT_MEDICAL.XML
+      - BSM_ENCADREMENT.XML
+      - BSM_DEPT.XML
+      - BSM_COMMUNE.XML
+      - BSM_CIRCONSTANCE.XML
+      - BSM_ACCIDENTS_VICTIMES.XML
+
+    # Mappings for all XML files to their corresponding database tables
+    mappings:
+      BSM_ACCIDENTS_VICTIMES.XML:
+        tables:
+        - name: bsm_accidents
+          root_element: Accident
+          fields:
+            ACC_ID: 
+              db_field: id
+              type: integer
+            ACC_RENFORT: 
+              db_field: acc_renfort
+              type: integer
+            ACC_DATE: 
+              db_field: acc_date
+              type: date
+            ACC_UPVA: 
+              db_field: acc_upva
+              type: string
+            ACC_GDH_ALERTE: 
+              db_field: acc_gdh_alerte
+              type: datetime
+            ACC_GDH_DEBUT: 
+              db_field: acc_gdh_debut
+              type: datetime
+            ACC_GDH_FIN: 
+              db_field: acc_gdh_fin
+              type: datetime
+            ACC_GPS: 
+              db_field: acc_gps
+              type: string
+            ACC_LIEU_COMPL: 
+              db_field: acc_lieu_compl
+              type: string
+            ACC_AVALANCHE: 
+              db_field: acc_avalanche
+              type: integer
+            ACC_INTER_TERRESTRE: 
+              db_field: acc_inter_terrestre
+              type: integer
+            ACC_INTER_HELICO: 
+              db_field: acc_inter_helico
+              type: integer
+            ACC_INTER_CYNO: 
+              db_field: acc_inter_cyno
+              type: integer
+            ACC_INTER_SPELEO: 
+              db_field: acc_inter_speleo
+              type: integer
+            ACC_ARPA: 
+              db_field: acc_arpa
+              type: integer
+            COMMUNE_ID: 
+              db_field: bsm_commune_id
+              type: string  # Changed to string to handle values like 2A114
+              lookup:
+                table: tga_communes
+                query: "SELECT id FROM {table} WHERE Code_commune_INSEE = :value"
+                #query: "SELECT id FROM {table} WHERE code = :value"
+                error_if_not_found: true
+            STYPE_ID: 
+              db_field: bsm_stype_id
+              type: integer
+            UNITE_ID: 
+              db_field: bsm_unite_id
+              type: integer
+            LIEU_ID: 
+              db_field: bsm_lieu_id
+              type: integer
+            NEIGE_ID: 
+              db_field: bsm_neige_id
+              type: integer
+            METEO_ID: 
+              db_field: bsm_meteo_id
+              type: integer
+            RA_ID: 
+              db_field: bsm_ra_id
+              type: integer
+            LOCPISTE_ID: 
+              db_field: bsm_locpiste_id
+              type: integer
+            ACC_ALTITUDE: 
+              db_field: acc_altitude
+              type: integer
+            ACC_GPS_FUSEAU: 
+              db_field: acc_gps_fuseau
+              type: string
+            ACC_GPS_BANDE: 
+              db_field: acc_gps_bande
+              type: string
+            ACC_GPS_ABSCISSES: 
+              db_field: acc_gps_abscisses
+              type: string
+            ACC_GPS_ORDONNEES: 
+              db_field: acc_gps_ordonnees
+              type: string
+            ACC_ENCADREMENT: 
+              db_field: bsm_acc_encadrement_id
+              type: integer
+            ACC_ABSCISSE_LAMBERT93: 
+              db_field: acc_abscisse_lambert93
+              type: string
+            ACC_ORDONNEE_LAMBERT93: 
+              db_field: acc_ordonnee_lambert93
+              type: string
+        
+        - name: bsm_victimes
+          root_element: Victime
+          fields:
+            VICTIME_ID: 
+              db_field: id
+              type: integer
+            ACC_ID: 
+              db_field: bsm_accident_id
+              type: integer
+            VICTIME_DATE_NAISS: 
+              db_field: victime_date_naiss
+              type: date
+            VICTIME_AGE: 
+              db_field: victime_age
+              type: integer
+            NATIONALITE_ID: 
+              db_field: bsm_nationalite_id
+              type: integer
+            ETAT_MEDICAL_ID: 
+              db_field: bsm_etat_medical_id
+              type: integer
+            CIRCONSTANCE_ID: 
+              db_field: bsm_circonstance_id
+              type: integer
+            SEXE_ID: 
+              db_field: bsm_sexe_id
+              type: integer
+            DEPT_ID:
+              db_field: bsm_dept_id
+              type: string
+              lookup:
+                table: tga_departements
+                query: "SELECT id FROM {table} WHERE dep = :value"
+                error_if_not_found: true
+
+      BSM_LOC_PISTE.XML:
+        table: bsm_locpistes
+        parser: xml
+        fields:
+          LOCPISTE_ID: 
+            db_field: id
+            type: integer
+          LOCPISTE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_SEXE.XML:
+        table: bsm_sexes
+        parser: xml
+        fields:
+          SEXE_ID: 
+            db_field: id
+            type: integer
+          SEXE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_NEIGE.XML:
+        table: bsm_neiges
+        parser: xml
+        fields:
+          NEIGE_ID: 
+            db_field: id
+            type: integer
+          NEIGE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_NATIONALITE.XML:
+        table: bsm_nationalites
+        parser: xml
+        fields:
+          NATIONALITE_ID: 
+            db_field: id
+            type: integer
+          NATIONALITE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_METEO.XML:
+        table: bsm_meteos
+        parser: xml
+        fields:
+          METEO_ID: 
+            db_field: id
+            type: integer
+          METEO_NOM: 
+            db_field: name
+            type: string
+
+      BSM_LIEU.XML:
+        table: bsm_lieus
+        parser: xml
+        fields:
+          LIEU_ID: 
+            db_field: id
+            type: integer
+          UNITE_ID: 
+            db_field: bsm_unite_id
+            type: integer
+          LIEU_NOM: 
+            db_field: name
+            type: string
+
+      BSM_CIRCONSTANCE.XML:
+        table: bsm_circonstances
+        parser: xml
+        fields:
+          CIRCONSTANCE_ID: 
+            db_field: id
+            type: integer
+          CIRCONSTANCE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_DEPT.XML:
+        table: bsm_depts
+        parser: xml
+        fields:
+          DEPT_ID: 
+            db_field: code
+            type: string
+          DEPT_NOM: 
+            db_field: name
+            type: string
+
+      BSM_UNITE.XML:
+        table: bsm_unites
+        parser: xml
+        fields:
+          UNITE_ID: 
+            db_field: id
+            type: integer
+          UNITE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_COMMUNE.XML:
+        table: bsm_communes
+        parser: xml
+        fields:
+          COMMUNE_ID: 
+            db_field: code
+            type: string
+          UNITE_ID: 
+            db_field: bsm_unite_id
+            type: integer
+          COMMUNE_NOM: 
+            db_field: name
+            type: string
+          TGA_COMMUNE_ID: 
+            db_field: tga_commune_id
+            type: integer
+
+      BSM_ENCADREMENT.XML:
+        table: bsm_acc_encadrements
+        parser: xml
+        fields:
+          ENCADREMENT_ID: 
+            db_field: id
+            type: integer
+          ENCADREMENT_NOM: 
+            db_field: name
+            type: string
+
+      BSM_SOUS_TYPE.XML:
+        table: bsm_stypes
+        parser: xml
+        fields:
+          STYPE_ID: 
+            db_field: bsm_type_id
+            type: integer
+          STYPE_NOM: 
+            db_field: name
+            type: string
+          TYPE_ID: 
+            db_field: bsm_stypes_activite_id
+            type: integer
+
+      BSM_TYPE.XML:
+        table: bsm_types
+        parser: xml
+        fields:
+          TYPE_ID: 
+            db_field: id
+            type: integer
+          TYPE_NOM: 
+            db_field: name
+            type: string
+
+      BSM_RISQUE_AVALANCHE.XML:
+        table: bsm_ras
+        parser: xml
+        fields:
+          RA_ID: 
+            db_field: id
+            type: integer
+          RA_NOM: 
+            db_field: name
+            type: string
+
+      BSM_ETAT_MEDICAL.XML:
+        table: bsm_etat_medicals
+        parser: xml
+        fields:
+          ETAT_MEDICAL_ID: 
+            db_field: id
+            type: integer
+          ETAT_MEDICAL_NOM: 
+            db_field: name
+            type: string
+
+  crs:
+    name: "CRS Montagne - DZCRS LYON CNEAS"
+    sender_email: "cneas-dzlyon-dccrs@interieur.gouv.fr"
+    primary_attachment: "CRS.zip"
+    days_lookback: 7   # Look back only 1 week for CRS
+    inboxes:
+      - INBOX
+      - INBOX.Archive    
+    # CRS-specific security configuration
+    security:
+      email_checks:
+        - sender_domain
+        - spf
+        - dkim
+      malware_scan: true
+      allowed_sender_domains:
+        - interieur.gouv.fr
+        - ensm.sports.gouv.fr
+      spam_threshold: 3.0
+      max_attachment_size: 100MB
+      allowed_attachment_types:
+        - application/json
+        - application/zip
+        - text/json
+
+      # File security settings
+      file_validation:
+        max_size: 100MB
+        zip_extraction:
+          max_ratio: 15
+          max_files: 200
+          max_file_size: 50MB
+          allowed_types:
+            - .json
+        json_validation:
+          max_depth: 50
+          max_string_length: 10000
+
+    # Minimal placeholder configuration
+    reference_order:
+      - CrsUnite.json
+      - CrsNatureOperation.json
+      - CrsNatureActivite.json
+      - CrsPpsm.json
+      - CrsHelicoptere.json
+      - CrsFonctionnaire.json
+      - CrsEtatMedical.json
+      - CrsDestination.json
+      - CrsSecourismeEffectue.json
+      - CrsTechniquesEvacuation.json
+      - CrsAutoritesAvisee.json
+      - CrsAccident.json
+      - CrsVictime.json
+      - CrsAccidentsMeteo.json
+      - CrsAccidentsHelicoptere.json
+      - CrsAccidentsFonctionnaire.json
+      - CrsAccidentsAutoritesAvisee.json
+      - CrsAccidentsPpsm.json
+      - CrsAccidentsSecourismeEffectue.json
+      - CrsAccidentsTechniquesEvacuation.json
+      - CrsVictimesBlessure.json
+      - CrsVictimesLocalisationblessure.json
+      - CrsVictimesAvalancheMoyen.json
+      - CrsVictimesAvalanchePositionCorp.json
+      - CrsVictimesAvalancheObstacle.json
+      - CrsVictimesAvalancheEnvironnement.json
+
+    # Detailed mappings for each JSON file
+    mappings:
+      # Reference/Lookup Tables
+      CrsUnite.json:
+        table: crs_unites
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          autorites_avisee: 
+            db_field: autorites_avisee
+            type: string
+
+      CrsNatureOperation.json:
+        table: crs_nature_operations
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+
+      CrsNatureActivite.json:
+        table: crs_nature_activites
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          tga_pref_activite_id: 
+            db_field: tga_pref_activite_id
+            type: integer
+
+      CrsPpsm.json:
+        table: crs_ppsms
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+
+      CrsHelicoptere.json:
+        table: crs_helicopteres
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+          appartenant: 
+            db_field: appartenant
+            type: integer
+
+      CrsFonctionnaire.json:
+        table: crs_fonctionnaires
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+          crs_grade_id: 
+            db_field: crs_grade_id
+            type: integer
+          matricule: 
+            db_field: matricule
+            type: string
+          nom: 
+            db_field: nom
+            type: string
+          prenom: 
+            db_field: prenom
+            type: string
+          emploi: 
+            db_field: emploi
+            type: string
+          grade: 
+            db_field: grade
+            type: string
+
+      CrsEtatMedical.json:
+        table: crs_etat_medicals
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+
+      CrsDestination.json:
+        table: crs_destinations
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+
+      CrsSecourismeEffectue.json:
+        table: crs_secourisme_effectues
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+
+      CrsTechniquesEvacuation.json:
+        table: crs_techniques_evacuations
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+
+      CrsAutoritesAvisee.json:
+        table: crs_autorites_avisees
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          name: 
+            db_field: name
+            type: string
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+          prefecture: 
+            db_field: prefecture
+            type: integer
+
+      # Main Data Tables
+      CrsAccident.json:
+          table: crs_accidents
+          parser: json
+          fields:
+            id: 
+              db_field: id
+              type: integer
+            crs_unite_id: 
+              db_field: crs_unite_id
+              type: integer
+            no_texte: 
+              db_field: no_texte
+              type: string
+            crs_origine_id:
+              db_field: crs_origine_id
+              type: integer
+            origine:
+              db_field: origine
+              type: string
+            date: 
+              db_field: date
+              type: datetime
+            gdh_alerte: 
+              db_field: gdh_alerte
+              type: datetime
+            gdh_debut: 
+              db_field: gdh_debut
+              type: datetime
+            gdh_fin: 
+              db_field: gdh_fin
+              type: datetime
+            gdh_sur_lieux: 
+              db_field: gdh_sur_lieux
+              type: datetime
+            tga_massif_id:
+              db_field: tga_massif_id
+              type: integer
+            tga_commune_id:
+              db_field: tga_commune_id
+              type: integer
+            lieu_compl: 
+              db_field: lieu_compl
+              type: string
+            crs_nature_operation_id:
+              db_field: crs_nature_operation_id
+              type: integer
+            crs_nature_activite_id:
+              db_field: crs_nature_activite_id
+              type: integer
+            altitude: 
+              db_field: altitude
+              type: integer
+            gps: 
+              db_field: gps
+              type: string
+            tga_encadrement_id:
+              db_field: tga_encadrement_id
+              type: integer
+            tga_diplome_encadrant_id:
+              db_field: tga_diplome_encadrant_id
+              type: integer
+            tga_type_domaine_id:
+              db_field: tga_type_domaine_id
+              type: integer
+            tga_locpiste_id:
+              db_field: tga_locpiste_id
+              type: integer
+            tga_neige_id:
+              db_field: tga_neige_id
+              type: integer
+            crs_operation:
+              db_field: crs_operation
+              type: integer
+            medicalisation:
+              db_field: medicalisation
+              type: integer
+            cyno_crs:
+              db_field: cyno_crs
+              type: integer
+            helicoptere_prive:
+              db_field: helicoptere_prive
+              type: integer
+            helicoptere_prive_raison:
+              db_field: helicoptere_prive_raison
+              type: string
+            circonstances:
+              db_field: circonstances
+              type: string
+            sec_pghm:
+              db_field: sec_pghm
+              type: integer
+            sec_pompiers:
+              db_field: sec_pompiers
+              type: integer
+            sec_pisteurs:
+              db_field: sec_pisteurs
+              type: integer
+            sec_autres:
+              db_field: sec_autres
+              type: integer
+            medecin:
+              db_field: medecin
+              type: integer
+            cyno_gie:
+              db_field: cyno_gie
+              type: integer
+            cyno_pompiers:
+              db_field: cyno_pompiers
+              type: integer
+            cyno_autres:
+              db_field: cyno_autres
+              type: integer
+            cyno_pisteurs:
+              db_field: cyno_pisteurs
+              type: integer
+            suivi_judiciaire:
+              db_field: suivi_judiciaire
+              type: integer
+            crs_directeur_enquete_fonctionnaire_id:
+              db_field: crs_directeur_enquete_fonctionnaire_id
+              type: integer
+            crs_directeur_enquete_autre_service:
+              db_field: crs_directeur_enquete_autre_service
+              type: string
+            medias_informes:
+              db_field: medias_informes
+              type: integer
+            medias_informes_avis_divers:
+              db_field: medias_informes_avis_divers
+              type: string
+            crs_redacteur_fonctionnaire_id:
+              db_field: crs_redacteur_fonctionnaire_id
+              type: integer
+            crs_signataire_fonctionnaire_id:
+              db_field: crs_signataire_fonctionnaire_id
+              type: integer
+            avalanche:
+              db_field: avalanche
+              type: integer
+            tga_avalanche_type_depot_id:
+              db_field: tga_avalanche_type_depot_id
+              type: integer
+            tga_avalanche_type_id:
+              db_field: tga_avalanche_type_id
+              type: integer
+            tga_ra_id:
+              db_field: tga_ra_id
+              type: integer
+            avalanche_heure_declenchement:
+              db_field: avalanche_heure_declenchement
+              type: datetime
+            avalanche_pd_gps:
+              db_field: avalanche_pd_gps
+              type: string
+            avalanche_longueur:
+              db_field: avalanche_longueur
+              type: integer
+            avalanche_largeur:
+              db_field: avalanche_largeur
+              type: integer
+            avalanche_hauteur_cassure:
+              db_field: avalanche_hauteur_cassure
+              type: integer
+            avalanche_largeur_depot:
+              db_field: avalanche_largeur_depot
+              type: integer
+            avalanche_altitude:
+              db_field: avalanche_altitude
+              type: integer
+            avalanche_denivele_total:
+              db_field: avalanche_denivele_total
+              type: integer
+            avalanche_pente:
+              db_field: avalanche_pente
+              type: string
+            tga_point_cardinal_id:
+              db_field: tga_point_cardinal_id
+              type: integer
+            avalanche_nb_participants:
+              db_field: avalanche_nb_participants
+              type: integer
+            avalanche_nb_impliques:
+              db_field: avalanche_nb_impliques
+              type: integer
+            avalanche_nb_blesses:
+              db_field: avalanche_nb_blesses
+              type: integer
+            avalanche_nb_indemnes:
+              db_field: avalanche_nb_indemnes
+              type: integer
+            avalanche_nb_decedes:
+              db_field: avalanche_nb_decedes
+              type: integer
+            avalanche_nb_ensevelis:
+              db_field: avalanche_nb_ensevelis
+              type: integer
+            avalanche_nb_ensevelis_partiel:
+              db_field: avalanche_nb_ensevelis_partiel
+              type: integer
+
+      CrsVictime.json:
+        table: crs_victimes
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_statut_id:
+            db_field: crs_statut_id
+            type: integer
+          crs_etat_medical_id:
+            db_field: crs_etat_medical_id
+            type: integer
+          tga_nationalite_id:
+            db_field: tga_nationalite_id
+            type: integer
+          tga_commune_id:
+            db_field: tga_commune_id
+            type: integer
+          tga_pay_id:
+            db_field: tga_pay_id
+            type: integer
+          tga_circonstance_id:
+            db_field: tga_circonstance_id
+            type: integer
+          crs_destination_id:
+            db_field: crs_destination_id
+            type: integer
+          date_naiss: 
+            db_field: date_naiss
+            type: date
+          age: 
+            db_field: age
+            type: integer
+          tga_sexe_id:
+            db_field: tga_sexe_id
+            type: integer
+          nom: 
+            db_field: nom
+            type: string
+          prenom: 
+            db_field: prenom
+            type: string
+          lieu_naiss: 
+            db_field: lieu_naiss
+            type: string
+          profession: 
+            db_field: profession
+            type: string
+          demeurant: 
+            db_field: demeurant
+            type: string
+          tel: 
+            db_field: tel
+            type: string
+          email: 
+            db_field: email
+            type: string
+          heure_fin_prise_charge:
+            db_field: heure_fin_prise_charge
+            type: datetime
+          avalanche_distance:
+            db_field: avalanche_distance
+            type: integer
+          avalanche_profondeur:
+            db_field: avalanche_profondeur
+            type: integer
+          avalanche_bouchon:
+            db_field: avalanche_bouchon
+            type: integer
+          avalanche_duree:
+            db_field: avalanche_duree
+            type: integer
+          avalanche_poche:
+            db_field: avalanche_poche
+            type: integer
+          tga_avalanche_position_id:
+            db_field: tga_avalanche_position_id
+            type: integer
+          tga_avalanche_durete_id:
+            db_field: tga_avalanche_durete_id
+            type: integer
+
+      # Junction/Relationship Tables
+      CrsAccidentsMeteo.json:
+        table: crs_accidents_meteos
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          tga_meteo_id: 
+            db_field: tga_meteo_id
+            type: integer
+
+      CrsAccidentsHelicoptere.json:
+        table: crs_accidents_helicopteres
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_helicoptere_id: 
+            db_field: crs_helicoptere_id
+            type: integer
+
+      CrsAccidentsFonctionnaire.json:
+        table: crs_accidents_fonctionnaires
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_role_id: 
+            db_field: crs_role_id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_fonctionnaire_id: 
+            db_field: crs_fonctionnaire_id
+            type: integer
+          crs_unite_id: 
+            db_field: crs_unite_id
+            type: integer
+          sec_sur_lieux: 
+            db_field: sec_sur_lieux
+            type: datetime
+
+      CrsAccidentsAutoritesAvisee.json:
+        table: crs_accidents_autorites_avisees
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_autorites_avisee_id: 
+            db_field: crs_autorites_avisee_id
+            type: integer
+
+      CrsAccidentsPpsm.json:
+        table: crs_accidents_ppsms
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_ppsm_id: 
+            db_field: crs_ppsm_id
+            type: integer
+
+      CrsAccidentsSecourismeEffectue.json:
+        table: crs_accidents_secourisme_effectues
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_secourisme_effectue_id: 
+            db_field: crs_secourisme_effectue_id
+            type: integer
+
+      CrsAccidentsTechniquesEvacuation.json:
+        table: crs_accidents_techniques_evacuations
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_accident_id: 
+            db_field: crs_accident_id
+            type: integer
+          crs_techniques_evacuation_id: 
+            db_field: crs_techniques_evacuation_id
+            type: integer
+
+      # Victim-Related Junction Tables
+      CrsVictimesBlessure.json:
+        table: crs_victimes_blessures
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_blessure_id: 
+            db_field: tga_blessure_id
+            type: integer
+
+      CrsVictimesLocalisationblessure.json:
+        table: crs_victimes_localisationblessures
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_localisationblessure_id: 
+            db_field: tga_localisationblessure_id
+            type: integer
+
+      CrsVictimesAvalancheMoyen.json:
+        table: crs_victimes_avalanche_moyens
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_avalanche_moyen_id: 
+            db_field: tga_avalanche_moyen_id
+            type: integer
+
+      CrsVictimesAvalanchePositionCorp.json:
+        table: crs_victimes_avalanche_position_corps
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_avalanche_position_corp_id: 
+            db_field: tga_avalanche_position_corp_id
+            type: integer
+
+      CrsVictimesAvalancheObstacle.json:
+        table: crs_victimes_avalanche_obstacles
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_avalanche_obstacle_id: 
+            db_field: tga_avalanche_obstacle_id
+            type: integer
+
+      CrsVictimesAvalancheEnvironnement.json:
+        table: crs_victimes_avalanche_environnements
+        parser: json
+        fields:
+          id: 
+            db_field: id
+            type: integer
+          crs_victime_id: 
+            db_field: crs_victime_id
+            type: integer
+          tga_avalanche_environnement_id: 
+            db_field: tga_avalanche_environnement_id
+            type: integer

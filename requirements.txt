@@ -1,0 +1,13 @@
+python-dotenv>=1.0.0
+mysql-connector-python>=8.2.0
+asyncio>=3.4.3
+
+# Configuration and Parsing
+pyyaml>=6.0  # For YAML configuration parsing
+
+# Security and Parsing
+dnspython>=2.4.0  # For DNS lookups
+python-magic>=0.4.27  # For file type detection
+defusedxml>=0.7.1  # For secure XML parsing
+python-clamd>=1.0.2  # For ClamAV integration
+dkimpy>=1.1.4  # For DKIM verification
