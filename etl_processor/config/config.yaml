@@ -10,7 +10,7 @@ imports:
       port: 3306
       name: "snosm"
       user: "snosm"
-      password: "9%9ijptM0)]nAai"
+      password: "*********"
     inboxes:
       - INBOX
       - INBOX.Archive
