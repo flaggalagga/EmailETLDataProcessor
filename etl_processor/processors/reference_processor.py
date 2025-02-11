@@ -66,31 +66,29 @@ class ReferenceProcessor(BaseProcessor):
                 raise self.handle_error("Reference processing failed", e, session)
 
     def _perform_lookup(self, session: Session, table: str, query: str, value: str) -> any:
-            """Perform database lookup"""
-            try:
-                # Check cache first
-                cache_key = f"{table}:{value}"
-                if cache_key in self._lookup_cache:
-                    self.logger.debug(f"Cache hit for {cache_key}")
-                    return self._lookup_cache[cache_key]
-                
-                # Format the query with the table name
-                formatted_query = query.format(table=table)
-                self.logger.debug(f"Executing lookup query: {formatted_query} with value: {value}")
-                
-                # Execute lookup query
-                result = session.execute(text(formatted_query), {'value': value}).scalar()
-                self.logger.debug(f"Lookup {value} in {table} returned: {result}")
-                
-                # Cache result
-                self._lookup_cache[cache_key] = result
-                return result
-                
-            except Exception as e:
-                self.logger.error(f"Lookup error for value {value} in {table}: {str(e)}")
-                if self.force_process:
-                    return None
-                raise
+        """Perform database lookup with NULL fallback"""
+        try:
+            # Check cache first
+            cache_key = f"{table}:{value}"
+            if cache_key in self._lookup_cache:
+                self.logger.debug(f"Cache hit for {cache_key}")
+                return self._lookup_cache[cache_key]
+            
+            # Format the query with the table name
+            formatted_query = query.format(table=table)
+            self.logger.debug(f"Executing lookup query: {formatted_query} with value: {value}")
+            
+            # Execute lookup query
+            result = session.execute(text(formatted_query), {'value': value}).scalar()
+            self.logger.debug(f"Lookup {value} in {table} returned: {result}")
+            
+            # Cache result (even if None)
+            self._lookup_cache[cache_key] = result
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Lookup error for value {value} in {table}: {str(e)}")
+            return None
 
     def _process_file(self, file_path: str, import_type: str, session: Session):
         """Process a single reference file"""
@@ -114,88 +112,88 @@ class ReferenceProcessor(BaseProcessor):
             raise self.handle_error(f"Error processing {file_name}", e, session)
 
     def _process_xml_file(self, file_path: str, mapping: Dict, session: Session):
-            """Process XML reference file"""
-            try:
-                self.logger.info(f"Processing XML file: {file_path}")
+        """Process XML reference file"""
+        try:
+            self.logger.info(f"Processing XML file: {file_path}")
+            
+            # Parse XML safely
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            
+            # Get table configurations
+            table_configs = mapping.get('tables', [])
+            if not table_configs:
+                table_configs = [{'name': mapping['table'], 'fields': mapping['fields']}]
+            
+            self.logger.info(f"Processing {len(table_configs)} table configurations")
+            
+            # Process each table configuration
+            for table_config in table_configs:
+                table_name = table_config['name']
+                root_element = table_config.get('root_element', '')
                 
-                # Parse XML safely
-                tree = ET.parse(file_path)
-                root = tree.getroot()
+                self.logger.info(f"Processing table: {table_name}")
+                self.logger.info(f"Root element: '{root_element}'")
                 
-                # Get table configurations
-                table_configs = mapping.get('tables', [])
-                if not table_configs:
-                    table_configs = [{'name': mapping['table'], 'fields': mapping['fields']}]
+                # Find elements to process
+                elements = root.findall(f".//{root_element}") if root_element else [root]
+                self.logger.info(f"Found {len(elements)} elements to process")
                 
-                self.logger.info(f"Processing {len(table_configs)} table configurations")
-                
-                # Process each table configuration
-                for table_config in table_configs:
-                    table_name = table_config['name']
-                    root_element = table_config.get('root_element', '')
+                processed = 0
+                for elem in elements:
+                    data = {}
                     
-                    self.logger.info(f"Processing table: {table_name}")
-                    self.logger.info(f"Root element: '{root_element}'")
-                    
-                    # Find elements to process
-                    elements = root.findall(f".//{root_element}") if root_element else [root]
-                    self.logger.info(f"Found {len(elements)} elements to process")
-                    
-                    processed = 0
-                    for elem in elements:
-                        data = {}
-                        
-                        # Process fields according to mapping
-                        for xml_key, field_config in table_config['fields'].items():
-                            field_elem = elem.find(f".//{xml_key}")
-                            if field_elem is not None and field_elem.text:
-                                value = field_elem.text.strip()
-                                
-                                # Handle lookup fields
-                                if 'lookup' in field_config:
-                                    lookup_config = field_config['lookup']
-                                    lookup_value = self._perform_lookup(
-                                        session,
-                                        lookup_config['table'],
-                                        lookup_config['query'],
-                                        value
+                    # Process fields according to mapping
+                    for xml_key, field_config in table_config['fields'].items():
+                        field_elem = elem.find(f".//{xml_key}")
+                        if field_elem is not None and field_elem.text:
+                            value = field_elem.text.strip()
+                            
+                            # Handle lookup fields
+                            if 'lookup' in field_config:
+                                lookup_config = field_config['lookup']
+                                lookup_value = self._perform_lookup(
+                                    session,
+                                    lookup_config['table'],
+                                    lookup_config['query'],
+                                    value
+                                )
+                                # Set value to None if lookup fails (instead of raising error)
+                                data[field_config['db_field']] = lookup_value
+                                if lookup_value is None:
+                                    self.logger.warning(
+                                        f"No matching record found in {lookup_config['table']} "
+                                        f"for value: {value} - setting to NULL"
                                     )
-                                    if lookup_value is not None:
-                                        data[field_config['db_field']] = lookup_value
-                                    elif lookup_config.get('error_if_not_found'):
-                                        raise ValueError(
-                                            f"No matching record found in {lookup_config['table']} "
-                                            f"for value: {value}"
-                                        )
-                                else:
-                                    # Regular field conversion
-                                    converted = convert_field(
-                                        value,
-                                        field_config['type'],
-                                        field_config.get('format')
-                                    )
-                                    if converted is not None:
-                                        data[field_config['db_field']] = converted
-                        
-                        # Add timestamps
-                        now = datetime.utcnow()
-                        if 'created' not in data:
-                            data['created'] = now
-                        if 'modified' not in data:
-                            data['modified'] = now
-                        
-                        # Save to database
-                        if data:
-                            self._save_record(table_name, data, session)
-                            processed += 1
-                            if processed % 100 == 0:
-                                self.logger.info(f"Processed {processed} records for {table_name}")
+                            else:
+                                # Regular field conversion
+                                converted = convert_field(
+                                    value,
+                                    field_config['type'],
+                                    field_config.get('format')
+                                )
+                                if converted is not None:
+                                    data[field_config['db_field']] = converted
                     
-                    self.logger.info(f"Total records processed for {table_name}: {processed}")
+                    # Add timestamps
+                    now = datetime.utcnow()
+                    if 'created' not in data:
+                        data['created'] = now
+                    if 'modified' not in data:
+                        data['modified'] = now
+                    
+                    # Save to database
+                    if data:
+                        self._save_record(table_name, data, session)
+                        processed += 1
+                        if processed % 100 == 0:
+                            self.logger.info(f"Processed {processed} records for {table_name}")
                 
-            except Exception as e:
-                self.logger.error("Error processing XML file", exc_info=True)
-                raise
+                self.logger.info(f"Total records processed for {table_name}: {processed}")
+                
+        except Exception as e:
+            self.logger.error("Error processing XML file", exc_info=True)
+            raise
 
     def _process_json_file(self, file_path: str, mapping: Dict, session: Session):
         """Process JSON reference file"""

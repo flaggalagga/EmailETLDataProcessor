@@ -120,8 +120,9 @@ def parse_args():
 async def process_email(email_msg, import_type: str, temp_dir: str, display, force: bool = False):
     """Process a single email message"""
     try:
-        # Create database session
-        session = get_db_session()
+        # Initialize config loader and create database session with import-specific config
+        config_loader = ConfigLoader()
+        session = get_db_session(import_type=import_type, config_loader=config_loader)
 
         # Initialize processors
         email_processor = EmailProcessor()

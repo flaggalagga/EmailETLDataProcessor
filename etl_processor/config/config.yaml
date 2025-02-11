@@ -5,6 +5,12 @@ imports:
     sender_email: "sir-si@gendarmerie.interieur.gouv.fr"
     primary_attachment: "BSM.zip"
     days_lookback: 90  # 3 months in days
+    database:
+      host: "mysql"  # Can override env vars with direct values
+      port: 3306
+      name: "snosm"
+      user: "snosm"
+      password: "9%9ijptM0)]nAai"
     inboxes:
       - INBOX
       - INBOX.Archive
@@ -383,6 +389,12 @@ imports:
     sender_email: "cneas-dzlyon-dccrs@interieur.gouv.fr"
     primary_attachment: "CRS.zip"
     days_lookback: 7   # Look back only 1 week for CRS
+    database:
+      host: "${MYSQL_HOST}"  # Uses env var if set
+      port: "${MYSQL_PORT_INTERNAL:-3306}"  # Uses 3306 as default if env var not set
+      name: "${MYSQL_DATABASE}"
+      user: "${MYSQL_USER}"
+      password: "${MYSQL_PASSWORD}"
     inboxes:
       - INBOX
       - INBOX.Archive    

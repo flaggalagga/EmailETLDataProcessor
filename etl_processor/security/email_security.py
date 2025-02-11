@@ -93,7 +93,8 @@ class EmailSecurityProcessor:
                 results['attachment_valid'] = self._validate_attachments(
                     email_msg,
                     security_config.get('allowed_attachment_types', []),
-                    security_config.get('max_attachment_size', '50MB')
+                    security_config.get('max_attachment_size', '50MB'),
+                    import_type
                 )
                 self.logger.info(f"Attachment validation result: {results['attachment_valid']}")
 
@@ -119,23 +120,32 @@ class EmailSecurityProcessor:
         match = re.search(r'@([\w.-]+)', email_address)
         if match:
             return match.group(1).strip('>')
-        return ''
-
+            return ''
+        
     def _verify_spf(self, email_msg) -> bool:
         """Verify SPF record"""
         try:
             # Check Received-SPF header
             spf_headers = email_msg.headers.get('received-spf', [])
+            if isinstance(spf_headers, str):
+                spf_headers = [spf_headers]
+                
             for header in spf_headers:
-                if 'pass' in header.lower():
+                if header and 'pass' in header.lower():
+                    self.logger.debug(f"SPF pass found in header: {header}")
                     return True
 
             # Check Authentication-Results header
             auth_results = email_msg.headers.get('authentication-results', [])
+            if isinstance(auth_results, str):
+                auth_results = [auth_results]
+                
             for result in auth_results:
-                if 'spf=pass' in result.lower():
+                if result and 'spf=pass' in result.lower():
+                    self.logger.debug(f"SPF pass found in auth results: {result}")
                     return True
 
+            self.logger.warning("No valid SPF pass found in headers")
             return False
 
         except Exception as e:
@@ -145,12 +155,26 @@ class EmailSecurityProcessor:
     def _verify_dkim(self, email_msg) -> bool:
         """Verify DKIM signature"""
         try:
-            # Check Authentication-Results header
             auth_results = email_msg.headers.get('authentication-results', [])
+            if isinstance(auth_results, str):
+                auth_results = [auth_results]
+                
             for result in auth_results:
+                if not result:
+                    continue
+                    
+                # Look for DKIM pass in authentication results
                 if 'dkim=pass' in result.lower():
+                    self.logger.debug(f"DKIM pass found: {result}")
+                    return True
+                    
+                # Check for specific DKIM signature verification
+                dkim_parts = re.findall(r'dkim=(\w+)', result.lower())
+                if dkim_parts and 'pass' in dkim_parts:
+                    self.logger.debug(f"DKIM pass found in parts: {dkim_parts}")
                     return True
 
+            self.logger.warning("No valid DKIM signature found")
             return False
 
         except Exception as e:
@@ -162,10 +186,24 @@ class EmailSecurityProcessor:
         try:
             # Check Authentication-Results header
             auth_results = email_msg.headers.get('authentication-results', [])
+            if isinstance(auth_results, str):
+                auth_results = [auth_results]
+                
             for result in auth_results:
+                if not result:
+                    continue
+                    
+                # Look for DMARC pass
                 if 'dmarc=pass' in result.lower():
+                    self.logger.debug(f"DMARC pass found: {result}")
+                    return True
+                
+                # Check for action=none which can indicate pass
+                if 'dmarc=none' in result.lower() or 'action=none' in result.lower():
+                    self.logger.debug("DMARC none/action none found - considered valid")
                     return True
 
+            self.logger.warning("No valid DMARC result found")
             return False
 
         except Exception as e:
@@ -195,7 +233,7 @@ class EmailSecurityProcessor:
             self.logger.error(f"Spam check error: {str(e)}")
             return False
 
-    def _validate_attachments(self, email_msg, allowed_types: list, max_size: str) -> bool:
+    def _validate_attachments(self, email_msg, allowed_types: list, max_size: str, import_type: str) -> bool:
             """
             Validate attachment types and sizes
             
@@ -205,15 +243,31 @@ class EmailSecurityProcessor:
                 max_size: Maximum size (e.g., '50MB')
             """
             try:
+                if not self.config_loader:
+                    self.logger.error("No config loader available")
+                    return False
+                    
+                attachment_name = self.config_loader.get_primary_attachment_filename(import_type)
+                if not attachment_name:
+                    self.logger.error(f"No primary attachment configured for {import_type}")
+                    return False
+                    
+                primary_attachment = next(
+                    (att for att in email_msg.attachments if att.filename == attachment_name),
+                    None
+                )
+                if not primary_attachment:
+                    self.logger.warning(f"Primary attachment {attachment_name} not found")
+                    return False
+                
                 # Convert max_size to bytes
                 size_map = {'KB': 1024, 'MB': 1024*1024, 'GB': 1024*1024*1024}
                 size_unit = max_size[-2:]
                 max_bytes = int(max_size[:-2]) * size_map.get(size_unit, 1)
 
                 # Get primary attachment name from config
-                attachment_name = self.config_loader.get_primary_attachment_filename(
-                    self.config_loader.get_import_types()[0]  # Get first import type
-                )
+                # Get primary attachment name from config for THIS import type
+                attachment_name = self.config_loader.get_primary_attachment_filename(import_type)
 
                 primary_attachment = None
                 # Find primary attachment

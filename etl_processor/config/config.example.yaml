@@ -6,6 +6,12 @@ imports:
     sender_email: "sender@example.com"
     primary_attachment: "data.zip"
     days_lookback: 30  # Look back 30 days
+    database:
+      host: "custom_host"  # Can override env vars with direct values
+      port: 3307
+      name: "name"
+      user: "user"
+      password: "password"
     inboxes:
       - INBOX
       - INBOX.Archive

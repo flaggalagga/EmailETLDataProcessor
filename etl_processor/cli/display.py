@@ -273,31 +273,52 @@ class InteractiveDisplay(DisplayBase):
         ))
 
     async def get_email_selection(self, emails: List[Dict]) -> Optional[Dict]:
-        """Get user's email selection"""
+        """Get user's email selection with improved stdin handling"""
         while True:
             try:
-                choice = input(f"\n{Fore.CYAN}Enter email number to process (0 to exit):{Style.RESET_ALL} ").strip()
+                import sys
+                print(f"\n{Fore.CYAN}Enter email number to process (0 to exit):{Style.RESET_ALL} ", end='')
+                sys.stdout.flush()  # Ensure prompt is displayed
+                
+                choice = sys.stdin.readline()
+                if not choice:  # Handle EOF
+                    print("\nNo input received, exiting...")
+                    return None
+                    
+                choice = choice.strip()
                 if choice == '0':
                     return None
                 
-                index = int(choice) - 1
-                if 0 <= index < len(emails):
-                    selected = emails[index]
+                try:
+                    index = int(choice) - 1
+                    if 0 <= index < len(emails):
+                        selected = emails[index]
+                        
+                        print(f"\n{Fore.GREEN}Selected email details:{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}Date:{Style.RESET_ALL} {selected['date']}")
+                        print(f"{Fore.CYAN}Folder:{Style.RESET_ALL} {selected['folder']}")
+                        print(f"{Fore.CYAN}Subject:{Style.RESET_ALL} {selected['subject']}")
+                        print(f"{Fore.CYAN}Import Type:{Style.RESET_ALL} {selected['import_type']}")
+                        
+                        print(f"\n{Fore.YELLOW}Process this email? (y/n):{Style.RESET_ALL} ", end='')
+                        sys.stdout.flush()
+                        
+                        confirm = sys.stdin.readline()
+                        if not confirm:  # Handle EOF
+                            print("\nNo input received, exiting...")
+                            return None
+                            
+                        if confirm.strip().lower() == 'y':
+                            return selected
+                        continue
+                        
+                    self.error("Invalid selection")
+                except ValueError:
+                    self.error("Please enter a valid number")
                     
-                    print(f"\n{Fore.GREEN}Selected email details:{Style.RESET_ALL}")
-                    print(f"{Fore.CYAN}Date:{Style.RESET_ALL} {selected['date']}")
-                    print(f"{Fore.CYAN}Folder:{Style.RESET_ALL} {selected['folder']}")
-                    print(f"{Fore.CYAN}Subject:{Style.RESET_ALL} {selected['subject']}")
-                    print(f"{Fore.CYAN}Import Type:{Style.RESET_ALL} {selected['import_type']}")
-                    
-                    confirm = input(f"\n{Fore.YELLOW}Process this email? (y/n):{Style.RESET_ALL} ").strip().lower()
-                    if confirm == 'y':
-                        return selected
-                    continue
-                    
-                self.error("Invalid selection")
-            except ValueError:
-                self.error("Please enter a valid number")
+            except EOFError:
+                print("\nInput stream ended unexpectedly")
+                return None
             except KeyboardInterrupt:
                 print(f"\n{Fore.YELLOW}Operation cancelled{Style.RESET_ALL}")
                 return None

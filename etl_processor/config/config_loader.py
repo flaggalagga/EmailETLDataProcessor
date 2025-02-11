@@ -7,36 +7,38 @@ from pathlib import Path
 class ConfigLoader:
     """Handles loading and parsing of import configuration"""
     
+    POTENTIAL_PATHS = [
+        '/var/www/html/config/import_config.yaml',
+        os.path.join(os.path.dirname(__file__), 'config.yaml'),
+        os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml'),
+        '/etc/etl_processor/config.yaml'
+    ]
+    
     def __init__(self, config_path: Optional[str] = None):
         """Initialize the configuration loader"""
         self.logger = logging.getLogger(__name__)
         
         # Default to standard locations if no path provided
         if config_path is None:
-            potential_paths = [
-                '/var/www/html/config/import_config.yaml',
-                os.path.join(os.path.dirname(__file__), 'config.yaml'),
-                os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml'),
-                '/etc/etl_processor/config.yaml'
-            ]
-            
-            config_path = next((path for path in potential_paths if os.path.exists(path)), None)
+            config_path = next(
+                (path for path in self.POTENTIAL_PATHS if os.path.exists(path)), 
+                None
+            )
         
         if not config_path or not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found. Checked paths: {potential_paths}")
+            raise FileNotFoundError(
+                f"Configuration file not found. Checked paths: {self.POTENTIAL_PATHS}"
+            )
         
         self.config_path = config_path
         self.config = self._load_config()
-
+        
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         try:
             with open(self.config_path, 'r') as config_file:
-                config = yaml.safe_load(config_file)
-            
-            self.logger.info(f"Loaded configuration from {self.config_path}")
-            return config
-            
+                return yaml.safe_load(config_file)
+                
         except Exception as e:
             self.logger.error(f"Error loading configuration: {e}")
             raise

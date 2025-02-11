@@ -1,103 +1,163 @@
+# tests/test_email_security.py
+
 import pytest
+from unittest.mock import patch, MagicMock
 import dns.resolver
-from unittest.mock import Mock, patch
+from imap_tools import MailBox
 from etl_processor.security.email_security import EmailSecurityProcessor
 
 @pytest.fixture
-def email_security():
-    return EmailSecurityProcessor()
+def mock_logger():
+    with patch('etl_processor.security.email_security.logging') as mock_log:
+        yield mock_log.getLogger.return_value
+
+@pytest.fixture
+def sample_config():
+    return {
+        'security': {
+            'email_checks': ['spf', 'dkim', 'dmarc'],
+            'allowed_sender_domains': ['trusted-domain.com'],
+            'spam_threshold': 5.0
+        }
+    }
 
 @pytest.fixture
 def mock_email_msg():
-    email = Mock()
-    email.from_ = "sender@gendarmerie.interieur.gouv.fr"
-    email.headers = {"Received": "from [192.168.1.1]"}
-    email.obj.as_bytes.return_value = b"test email content"
-    email.attachments = []
-    return email
+    msg = MagicMock()
+    msg.from_ = 'Sender <sender@trusted-domain.com>'
+    msg.subject = 'Test Subject'
+    msg.headers = {
+        'received-spf': ['pass (sender IP is 1.2.3.4)'],
+        'authentication-results': ['dkim=pass header.d=trusted-domain.com'],
+        'dmarc-result': ['pass'],
+        'x-spam-score': ['2.0']
+    }
+    return msg
 
-class TestEmailSecurityProcessor:
-    
-    @pytest.mark.asyncio
-    async def test_verify_email_security_all_pass(self, email_security, mock_email_msg):
-        # Mock all security checks to pass
-        with patch.multiple(email_security,
-                          _verify_sender_domain=Mock(return_value=True),
-                          _check_spf=Mock(return_value=True),
-                          _verify_dkim=Mock(return_value=True),
-                          _check_dmarc=Mock(return_value=True),
-                          _scan_attachments=Mock(return_value=True)):
-            
-            results = await email_security.verify_email_security(mock_email_msg)
-            
-            assert all(results.values())
-            assert set(results.keys()) == {
-                'sender_verified',
-                'spf_pass',
-                'dkim_pass',
-                'dmarc_pass',
-                'malware_scan_pass'
+@pytest.fixture
+def config_loader(sample_config):
+    mock_loader = MagicMock()
+    mock_loader.get_security_rules.return_value = sample_config['security']
+    return mock_loader
+
+@pytest.fixture
+def processor(config_loader):
+    return EmailSecurityProcessor(config_loader)
+
+async def test_verify_email_security_success(processor, mock_email_msg):
+    """Test successful email security verification"""
+    # Setup security configuration using test email domain
+    security_config = {
+        'email_checks': ['spf', 'dkim', 'dmarc'],
+        'allowed_sender_domains': ['trusted-domain.com'],
+        'file_validation': {
+            'allowed_types': ['application/zip'],
+            'max_attachment_size': '50MB',
+            'zip_extraction': {
+                'max_ratio': 15,
+                'max_files': 100,
+                'max_file_size': '50MB',
+                'allowed_types': ['.zip', '.xml']
             }
+        }
+    }
+    
+    # Configure processor with mocked config
+    processor.config_loader = MagicMock()
+    processor.config_loader.get_security_rules.return_value = security_config
+    processor.config_loader.get_primary_attachment_filename.return_value = 'test.zip'
+    
+    # Mock get_primary_attachment_filename method
+    processor.get_primary_attachment_filename = MagicMock(return_value='test.zip')
+    
+    # Setup attachment with proper mock
+    attachment = MagicMock()
+    attachment.filename = 'test.zip'
+    attachment.payload = b'test content'
+    mock_email_msg.attachments = [attachment]
+    
+    # Add required DMARC result to existing headers
+    mock_email_msg.headers['authentication-results'] = [
+        'dkim=pass header.d=trusted-domain.com;' +
+        'spf=pass;dmarc=pass action=none'
+    ]
+    
+    # Mock magic file type check
+    with patch('magic.from_buffer', return_value='application/zip'):
+        results = await processor.verify_email_security(mock_email_msg, 'test_import')
+        
+        # Check individual results for easier debugging
+        for check, result in results.items():
+            assert result, f"Check failed: {check}"
+        
+        # Verify all checks passed
+        assert all(results.values())
 
-    @pytest.mark.asyncio
-    async def test_verify_email_security_all_fail(self, email_security, mock_email_msg):
-        # Mock all security checks to fail
-        with patch.multiple(email_security,
-                          _verify_sender_domain=Mock(return_value=False),
-                          _check_spf=Mock(return_value=False),
-                          _verify_dkim=Mock(return_value=False),
-                          _check_dmarc=Mock(return_value=False),
-                          _scan_attachments=Mock(return_value=False)):
-            
-            results = await email_security.verify_email_security(mock_email_msg)
-            
-            assert not any(results.values())
+async def test_verify_email_security_invalid_sender(processor, mock_email_msg):
+    """Test security check with invalid sender domain"""
+    mock_email_msg.from_ = 'sender@untrusted-domain.com'
+    results = await processor.verify_email_security(mock_email_msg, 'test_import')
+    assert not results['sender_verified']
 
-    def test_verify_sender_domain_valid(self, email_security):
-        with patch('dns.resolver.resolve') as mock_resolve:
-            mock_resolve.return_value = [Mock()]  # Simulate MX records exist
-            assert email_security._verify_sender_domain('gendarmerie.interieur.gouv.fr')
+async def test_verify_spf_pass(processor, mock_email_msg):
+    """Test successful SPF verification"""
+    result = processor._verify_spf(mock_email_msg)
+    assert result is True
 
-    def test_verify_sender_domain_invalid(self, email_security):
-        with patch('dns.resolver.resolve') as mock_resolve:
-            mock_resolve.side_effect = dns.resolver.NXDOMAIN()
-            assert not email_security._verify_sender_domain('invalid-domain.com')
+async def test_verify_spf_fail(processor, mock_email_msg):
+    """Test failed SPF verification"""
+    mock_email_msg.headers['received-spf'] = ['fail']
+    result = processor._verify_spf(mock_email_msg)
+    assert result is False
 
-    def test_check_spf_valid(self, email_security, mock_email_msg):
-        with patch('dns.resolver.resolve') as mock_resolve:
-            mock_resolve.return_value = [
-                Mock(strings=[b'v=spf1 ip4:192.168.1.1 -all'])
-            ]
-            assert email_security._check_spf(mock_email_msg)
+async def test_verify_dkim_pass(processor, mock_email_msg):
+    """Test successful DKIM verification"""
+    result = processor._verify_dkim(mock_email_msg)
+    assert result is True
 
-    def test_verify_dkim_valid(self, email_security, mock_email_msg):
-        with patch('dkim.verify', return_value=True):
-            assert email_security._verify_dkim(mock_email_msg)
+async def test_verify_dkim_fail(processor, mock_email_msg):
+    """Test failed DKIM verification"""
+    mock_email_msg.headers['authentication-results'] = ['dkim=fail']
+    result = processor._verify_dkim(mock_email_msg)
+    assert result is False
 
-    def test_check_dmarc_valid(self, email_security):
-        with patch('dns.resolver.resolve') as mock_resolve:
-            mock_resolve.return_value = [
-                Mock(strings=[b'v=DMARC1; p=reject; rua=mailto:dmarc@example.com'])
-            ]
-            assert email_security._check_dmarc('gendarmerie.interieur.gouv.fr')
+# tests/test_email_security.py
 
-    @pytest.mark.asyncio
-    async def test_scan_attachments_clean(self, email_security, mock_email_msg):
-        with patch('clamd.ClamdUnixSocket') as mock_clamd:
-            instance = mock_clamd.return_value
-            instance.instream.return_value = {'stream': ['OK', '']}
-            assert await email_security._scan_attachments(mock_email_msg)
+@pytest.mark.asyncio
+async def test_verify_dmarc_pass(processor, mock_email_msg):
+    """Test successful DMARC verification"""
+    # Add DMARC pass header
+    mock_email_msg.headers = {
+        'authentication-results': ['dmarc=pass']
+    }
+    result = processor._verify_dmarc(mock_email_msg)
+    assert result is True
 
-    @pytest.mark.asyncio
-    async def test_scan_attachments_infected(self, email_security, mock_email_msg):
-        mock_email_msg.attachments = [Mock(payload=b'test content')]
-        with patch('clamd.ClamdUnixSocket') as mock_clamd:
-            instance = mock_clamd.return_value
-            instance.instream.return_value = {'stream': ['FOUND', 'malware']}
-            assert not await email_security._scan_attachments(mock_email_msg)
+async def test_verify_dmarc_fail(processor, mock_email_msg):
+    """Test failed DMARC verification"""
+    mock_email_msg.headers['dmarc-result'] = ['fail']
+    result = processor._verify_dmarc(mock_email_msg)
+    assert result is False
 
-    @pytest.mark.asyncio
-    async def test_verify_email_security_exception_handling(self, email_security, mock_email_msg):
-        with patch.object(email_security, '_verify_sender_domain', side_effect=Exception('Test error')):
-            with pytest.raises(Exception):
-                await email_security.verify_email_security(mock_email_msg)
+async def test_check_spam_score_below_threshold(processor, mock_email_msg):
+    """Test spam score below threshold"""
+    result = processor._check_spam_score(mock_email_msg, 5.0)
+    assert result is True
+
+async def test_check_spam_score_above_threshold(processor, mock_email_msg):
+    """Test spam score above threshold"""
+    mock_email_msg.headers['x-spam-score'] = ['6.0']
+    result = processor._check_spam_score(mock_email_msg, 5.0)
+    assert result is False
+
+async def test_verify_email_security_no_config(mock_email_msg):
+    """Test security verification without config"""
+    processor = EmailSecurityProcessor(None)
+    results = await processor.verify_email_security(mock_email_msg, 'test_import')
+    assert results == {'all_checks': True}
+
+async def test_verify_email_security_missing_headers(processor, mock_email_msg):
+    """Test security verification with missing headers"""
+    mock_email_msg.headers = {}
+    results = await processor.verify_email_security(mock_email_msg, 'test_import')
+    assert not all(results.values())
