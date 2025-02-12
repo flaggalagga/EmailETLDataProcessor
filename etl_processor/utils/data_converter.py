@@ -4,11 +4,22 @@ from datetime import datetime
 from typing import Any, Optional
 import logging
 from dateutil import parser
+import re
 
 logger = logging.getLogger(__name__)
 
 def convert_field(value: Any, field_type: str, field_format: Optional[str] = None) -> Any:
-    """Convert field value based on configuration"""
+    """
+    Convert field value based on configuration with enhanced date parsing
+    
+    Args:
+        value: Input value to convert
+        field_type: Target type for conversion
+        field_format: Optional format specification for parsing
+    
+    Returns:
+        Converted value or None if conversion fails
+    """
     if value is None:
         return None
         
@@ -51,20 +62,33 @@ def convert_field(value: Any, field_type: str, field_format: Optional[str] = Non
             
         elif field_type == 'date':
             try:
+                # If specific format is provided, try parsing with that first
                 if field_format:
-                    dt = datetime.strptime(value, field_format)
-                else:
-                    dt = parser.parse(str(value))
-                return dt.date()
+                    try:
+                        return datetime.strptime(value, field_format).date()
+                    except ValueError:
+                        logger.warning(f"Failed to parse date with specified format {field_format}")
+                
+                # If no format or format parsing fails, use advanced parsing
+                return _parse_flexible_date(value)
+                
             except (ValueError, TypeError) as e:
                 logger.error(f"Error converting '{value}' to date: {str(e)}")
                 return None
             
         elif field_type == 'datetime':
             try:
+                # If specific format is provided, try parsing with that first
                 if field_format:
-                    return datetime.strptime(value, field_format)
-                return parser.parse(str(value))
+                    try:
+                        return datetime.strptime(value, field_format)
+                    except ValueError:
+                        logger.warning(f"Failed to parse datetime with specified format {field_format}")
+                
+                # If no format or format parsing fails, use advanced parsing
+                parsed_dt = _parse_flexible_datetime(value)
+                return parsed_dt
+                
             except (ValueError, TypeError) as e:
                 logger.error(f"Error converting '{value}' to datetime: {str(e)}")
                 return None
@@ -86,6 +110,69 @@ def convert_field(value: Any, field_type: str, field_format: Optional[str] = Non
     except Exception as e:
         logger.error(f"Error converting '{value}' to {field_type}: {str(e)}")
         return None
+
+def _parse_flexible_date(value: str) -> datetime.date:
+    """
+    Parse date with multiple potential formats
+    
+    Supports these formats (among others):
+    - YYYY-MM-DD (ISO)
+    - DD-MM-YYYY
+    - MM-DD-YYYY
+    - Various separators (-, /, .)
+    """
+    # Try dateutil parser first (most flexible)
+    try:
+        return parser.parse(value).date()
+    except Exception:
+        # More explicit parsing for additional formats
+        formats_to_try = [
+            '%Y-%m-%d',     # ISO format
+            '%d-%m-%Y',     # Day-Month-Year
+            '%m-%d-%Y',     # Month-Day-Year
+            '%d/%m/%Y',     # Day/Month/Year
+            '%m/%d/%Y',     # Month/Day/Year
+            '%d.%m.%Y',     # Day.Month.Year
+            '%m.%d.%Y',     # Month.Day.Year
+        ]
+        
+        for fmt in formats_to_try:
+            try:
+                return datetime.strptime(value, fmt).date()
+            except ValueError:
+                continue
+        
+        raise ValueError(f"Could not parse date from '{value}'")
+
+def _parse_flexible_datetime(value: str) -> datetime:
+    """
+    Parse datetime with multiple potential formats
+    
+    Supports these formats (among others):
+    - ISO format
+    - Various date formats with optional time
+    """
+    # Try dateutil parser first (most flexible)
+    try:
+        return parser.parse(value)
+    except Exception:
+        # More explicit parsing for additional formats
+        formats_to_try = [
+            '%Y-%m-%d %H:%M:%S',   # ISO-like with time
+            '%d-%m-%Y %H:%M:%S',   # Day-Month-Year with time
+            '%m-%d-%Y %H:%M:%S',   # Month-Day-Year with time
+            '%Y-%m-%d %H:%M',      # ISO-like with partial time
+            '%d-%m-%Y %H:%M',      # Day-Month-Year with partial time
+            '%m-%d-%Y %H:%M',      # Month-Day-Year with partial time
+        ]
+        
+        for fmt in formats_to_try:
+            try:
+                return datetime.strptime(value, fmt)
+            except ValueError:
+                continue
+        
+        raise ValueError(f"Could not parse datetime from '{value}'")
 
 def convert_to_sql_value(value: Any) -> str:
     """Convert value to SQL-safe string"""

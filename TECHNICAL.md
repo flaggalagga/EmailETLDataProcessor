@@ -1,5 +1,3 @@
-# TECHNICAL.md
-
 # Technical Documentation
 
 ## Core Concepts
@@ -16,6 +14,94 @@ The ETL processor is designed to handle automated data imports from email attach
 - Interactive CLI with progress visualization
 - Comprehensive error handling and notifications
 - Support for both XML and JSON data formats
+- Flexible Date Parsing
+
+## Date Parsing Capabilities
+
+### Supported Date Formats
+
+The data converter provides robust date and datetime parsing with multiple strategies:
+
+1. Flexible Automatic Parsing
+```yaml
+# No specific format - uses intelligent parsing
+created_at:
+  type: datetime  
+  # Supports formats like:
+  # - 2025-02-04 15:59:00
+  # - 04-02-2025 15:59:00
+  # - 2025/02/04
+  # - 04.02.2025
+```
+
+2. Explicit Format Specification
+```yaml
+# Specify exact parsing format for precision
+processed_at:
+  type: datetime
+  format: "%Y-%m-%d %H:%M:%S"  # ISO format
+  # Or
+  format: "%d-%m-%Y %H:%M:%S"  # Day-Month-Year format
+```
+
+#### Parsing Strategies
+
+1. **Default (Flexible) Parsing**
+   - Uses `dateutil.parser` for intelligent parsing
+   - Handles multiple international date formats
+   - Supports various separators (-, /, .)
+   - Automatically detects date structure
+
+2. **Specific Format Parsing**
+   - Allows exact format specification
+   - Resolves ambiguity in date representations
+   - Provides precise control over parsing
+
+#### Date Specifiers
+- `%Y`: 4-digit year (2025)
+- `%m`: 2-digit month (02)
+- `%d`: 2-digit day (04)
+- `%H`: Hour in 24-hour format (15)
+- `%M`: Minutes (59)
+- `%S`: Seconds (00)
+
+#### Configuration Examples
+```yaml
+mappings:
+  data.xml:
+    fields:
+      # Flexible parsing
+      created_at:
+        type: datetime  # Automatic detection
+      
+      # Explicit ISO format
+      processed_at:
+        type: datetime
+        format: "%Y-%m-%d %H:%M:%S"
+      
+      # Day-Month-Year format
+      registration_date:
+        type: date
+        format: "%d-%m-%Y"
+```
+
+#### Parsing Precedence
+1. Specified `format` in configuration
+2. Flexible dateutil parsing
+3. Predefined fallback formats
+4. Returns `None` if no parsing succeeds
+
+### Error Handling
+- Gracefully handles parsing failures
+- Returns `None` for invalid dates
+- Logs warnings for parsing issues
+- Provides detailed error information
+
+### Use Cases
+- Handling international date formats
+- Processing legacy or inconsistent data sources
+- Providing flexibility in data imports
+- Ensuring robust date parsing across different systems
 
 ## Data Flow
 

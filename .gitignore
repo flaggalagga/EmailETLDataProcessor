@@ -45,4 +45,4 @@ logs/
 Thumbs.db
 
 # Moi
-config/config.yaml
+etl_processor/config/config.yaml

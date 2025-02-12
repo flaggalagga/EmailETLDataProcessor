@@ -68,6 +68,11 @@ imports:
           NAME: 
             db_field: "name"
             type: "string"
+          CREATED_AT:
+            db_field: "created_at"
+            type: "datetime"
+            # Flexible ISO format datetime
+            format: "%Y-%m-%d %H:%M:%S"
       
       reference2.xml:
         table: "reference_table_2"
@@ -78,6 +83,11 @@ imports:
           DESCRIPTION: 
             db_field: "description"
             type: "string"
+          PROCESSED_DATE:
+            db_field: "processed_date"
+            type: "date"
+            # Day-Month-Year format
+            format: "%d-%m-%Y"
       
       main_data.xml:
         tables:
@@ -97,3 +107,12 @@ imports:
                 table: "reference_table_1"
                 query: "SELECT id FROM {table} WHERE name = :value"
                 error_if_not_found: true
+            RECORD_DATE:
+              db_field: "record_date"
+              type: "datetime"
+              # Flexible datetime parsing
+              # Supports:
+              # - 2025-02-04 15:59:00
+              # - 04-02-2025 15:59:00
+              # No specific format means most flexible parsing
+              # Use explicit format if precision is critical

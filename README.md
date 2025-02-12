@@ -1,5 +1,3 @@
-# README.md
-
 # Generic ETL Processor
 
 A configuration-driven ETL processor designed to handle various types of email-based data imports. The system is built to be completely generic, allowing new import types to be added through configuration without code changes.
@@ -9,6 +7,10 @@ A configuration-driven ETL processor designed to handle various types of email-b
 - Fully configuration-driven import processing
 - Support for multiple data formats (XML, JSON)
 - Interactive CLI with real-time progress visualization
+- **Flexible Date Parsing**
+  - Intelligent date format detection
+  - Support for multiple international date formats
+  - Configurable parsing strategies
 - Comprehensive security checks:
   - Email security (SPF, DKIM, DMARC)
   - File validation
@@ -21,6 +23,30 @@ A configuration-driven ETL processor designed to handle various types of email-b
 - Robust error handling with transaction management
 - Complete logging system
 - Support for both MySQL and MariaDB
+
+## Date Parsing Capabilities
+
+### Flexible Parsing
+```yaml
+# Automatic date detection
+created_at:
+  type: datetime
+  # Supports formats like:
+  # - 2025-02-04 15:59:00
+  # - 04-02-2025 15:59:00
+  # - 2025/02/04
+  # - 04.02.2025
+```
+
+### Explicit Format Specification
+```yaml
+# Precise format control
+processed_at:
+  type: datetime
+  format: "%Y-%m-%d %H:%M:%S"  # ISO format
+  # Or
+  format: "%d-%m-%Y %H:%M:%S"  # Day-Month-Year format
+```
 
 ## Installation
 
@@ -90,21 +116,17 @@ imports:
     inboxes:
       - INBOX
       - INBOX.Archive
-    security:
-      email_checks:
-        - sender_domain
-        - spf
-        - dkim
-        - dmarc
-      malware_scan: true
-      allowed_sender_domains:
-        - example.com
-      file_validation:
-        max_size: "50MB"
-        allowed_types:
-          - application/xml
-          - application/json
-    # ... additional configuration as needed
+    mappings:
+      data.xml:
+        fields:
+          # Flexible date parsing
+          created_at:
+            type: datetime
+          
+          # Explicit format specification
+          processed_at:
+            type: datetime
+            format: "%Y-%m-%d %H:%M:%S"
 ```
 
 ## Usage
@@ -182,6 +204,7 @@ The system provides comprehensive error handling:
 2. Data Errors:
    - XML/JSON parsing failures
    - Data type conversion errors
+   - **Date parsing failures**
    - Validation failures
 
 3. Database Errors:
